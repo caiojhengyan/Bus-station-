@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#f1efe9">
+<title>公車站點測驗</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--primary:#3f7ea6;--bg:#f1efe9;--text:#2e3440;--accent:#3d8b64;--card:color-mix(in srgb,var(--bg) 35%,#fff);--field:color-mix(in srgb,var(--bg) 10%,#fff);--line:color-mix(in srgb,var(--text) 18%,var(--bg))}
+*{box-sizing:border-box}
+html{overflow-x:hidden;color-scheme:light;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,"Noto Sans TC",sans-serif;min-height:100vh}
+.view{display:none;min-height:100vh;padding:20px;max-width:720px;margin:0 auto}
+.view.active{display:block}
+#home.active{display:flex;flex-direction:column;justify-content:center;gap:20px}
+h1{text-align:center;margin:0 0 20px}
+button{font:inherit;cursor:pointer;border:0;border-radius:14px;padding:16px;background:var(--primary);color:#fff;font-size:1.2rem}
+button.sec{background:var(--card);color:var(--text);border:1px solid var(--line)}
+button.small{padding:8px 14px;font-size:1rem;border-radius:10px}
+.card{background:var(--card);border:1px solid var(--line);box-shadow:0 1px 3px rgba(0,0,0,.06);border-radius:14px;padding:14px;margin-bottom:14px}
+label{display:block;margin:8px 0 4px;font-size:.9rem;opacity:.8}
+input[type=text],input[type=password],input[type=number],select{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--field);color:var(--text);font:inherit}
+.row{display:flex;gap:8px}.row>*{flex:1}
+details summary{cursor:pointer;padding:10px;background:var(--field);border:1px solid var(--line);border-radius:10px;list-style:none}
+.cities{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;margin-top:8px}
+.cities label{margin:0;display:flex;gap:6px;align-items:center;font-size:.95rem;opacity:1}
+.item{display:flex;align-items:center;gap:10px;padding:10px;background:var(--field);border:1px solid var(--line);border-radius:10px;margin-top:8px}
+.item span{flex:1}
+.item .x{background:none;padding:0 8px;color:#d14343;font-size:1.3rem}
+input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent)}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+#map{height:38vh;border-radius:14px;margin:10px 0;background:var(--line)}
+.bar{height:14px;background:var(--line);border-radius:99px;overflow:hidden}
+.bar>div{height:100%;width:0;background:var(--accent);transition:width .3s}
+.muted{opacity:.7;font-size:.9rem}
+.fb{min-height:1.6em;margin:8px 0;font-size:1.05rem}
+.ok{color:var(--accent)}.bad{color:#d14343}
+#blanks{margin:12px 0}
+.tl{position:relative;min-height:38px;display:flex;align-items:center;padding-left:34px;cursor:pointer}
+.tl::after{content:"";position:absolute;left:12px;top:0;bottom:0;width:3px;background:var(--line)}
+.tl::before{content:"";position:absolute;left:6px;top:50%;width:15px;height:15px;margin-top:-7.5px;border-radius:50%;background:#94a3b8;border:2px solid var(--bg);z-index:1}
+.tl .nm{font-size:1.02rem}
+.tl .nm:empty{width:80px;height:1em;border-bottom:1px dashed var(--line)}
+.tl.ok::before{background:var(--accent)}.tl.ok .nm{color:var(--accent)}
+.tl.bad::before{background:#d14343}.tl.bad .nm{color:#d14343}
+.tl.on::before{background:#f59e0b}
+.tl.gap{cursor:default}.tl.gap::before{display:none}
+#blanks>.tl:first-child::after{top:50%}#blanks>.tl:last-child::after{bottom:50%}
+.br{display:grid;grid-template-columns:1fr 1fr;margin:2px 0}
+.lane{min-width:0}.lane .nm{font-size:.95rem}
+.lh{position:relative;padding:6px 0 4px 34px;font-size:.8rem;opacity:.75;font-weight:600}
+.lh::after{content:"";position:absolute;left:12px;top:0;bottom:0;width:3px;background:var(--line)}
+#done{text-align:center;padding:20px 0}
+#done h2{font-size:2rem;color:var(--accent);margin:0 0 6px}
+.hide{display:none!important}
+#helpBtn{position:fixed;top:10px;right:10px;z-index:1000;padding:6px 12px;font-size:.95rem;border-radius:99px;background:var(--card);color:var(--text);border:1px solid var(--line);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+#help{position:fixed;inset:0;z-index:1001;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;padding:20px}
+#help.open{display:flex}
+#help .box{background:var(--bg);color:var(--text);border-radius:16px;padding:18px 18px 14px;max-width:460px;width:100%;max-height:85vh;overflow:auto;line-height:1.6;font-size:.95rem}
+#help h3{margin:0 0 8px}#help h4{margin:12px 0 2px;color:var(--primary)}
+#help ul{margin:0;padding-left:20px}
+</style>
+</head>
+<body>
+
+<div id="help" onclick="if(event.target===this)this.classList.remove('open')"><div class="box">
+  <h3>玩法教學</h3>
+  <h4>1. 設定題庫</h4>
+  <ul><li>「開始」頁勾選縣市（可多選）。</li>
+  <li>輸入路線後按「加入」，多條用逗號分隔；旁邊打勾表示出題。</li>
+  <li>路線可省略「路」：<b>19</b> = 19路，<b>19A</b> = 19路A。</li>
+  <li>不標主/副時，主線與副線一起出題。</li>
+  <li>範圍：<b>6700~6710</b> 會從這些路線中出題。</li>
+  <li>沒加入任何路線時，從所選縣市全部路線出題。</li></ul>
+  <h4>2. 填空題（預設）</h4>
+  <ul><li>地圖顯示整條路線，下方直線上每個點是一站。</li>
+  <li>在輸入框打任一站名，打對自動填到對應位置，不用照順序。</li>
+  <li>點直線上的點，地圖會標出該站位置。</li>
+  <li>「顯示答案」看全部站名，「換一題」換路線。</li>
+  <li>設置可開啟「去返程視為同一題」。</li></ul>
+  <h4>3. 單站問答</h4>
+  <ul><li>設置切換模式。地圖標出一站，輸入站名後按「送出」，不限題數。</li></ul>
+  <h4>4. 設置</h4>
+  <ul><li>需先填 TDX Client ID / Secret。</li>
+  <li>可換顏色、地圖（OpenStreetMap／Google 地圖）。</li></ul>
+  <button style="width:100%;margin-top:12px;padding:10px;font-size:1rem" onclick="$('help').classList.remove('open')">知道了</button>
+</div></div>
+
+<!-- 主畫面 -->
+<div id="home" class="view active">
+  <button id="helpBtn" onclick="$('help').classList.add('open')">❓ 玩法教學</button>
+  <h1>🚌 公車站點測驗</h1>
+  <button onclick="show('start')">開始</button>
+  <button class="sec" onclick="show('settings')">設置</button>
+  
+</div>
+
+<!-- 開始設定 -->
+<div id="start" class="view">
+  <div class="top"><button class="sec small" onclick="show('home')">← 返回</button><b>選擇題庫</b><span></span></div>
+  <div class="card">
+    <details>
+      <summary id="citySummary">選擇縣市（可多選）</summary>
+      <div class="cities" id="cities"></div>
+    </details>
+  </div>
+  <div class="card">
+    <div class="row">
+      <input type="text" id="routeInput" onkeydown="if(event.key==='Enter')addRoute()">
+      <button class="small" style="flex:0 0 70px" onclick="addRoute()">加入</button>
+    </div>
+    <div id="routeList"></div>
+  </div>
+  <button style="width:100%" id="goBtn" onclick="startGame()">開始</button>
+  <div class="muted" id="startMsg" style="margin-top:10px;line-height:1.5"></div>
+</div>
+
+<!-- 遊戲 -->
+<div id="game" class="view">
+  <div class="top"><button class="sec small" onclick="quitGame()">← 離開</button><b id="progText">0 / 0</b><span id="scoreText" class="muted"></span></div>
+  <div class="bar"><div id="progBar"></div></div>
+  <div id="map"></div>
+  <div class="muted" id="hint"></div>
+
+  <!-- 填空模式 -->
+  <div id="fillArea">
+    <div class="row" style="margin-top:10px">
+      <input type="text" id="quick" autocomplete="off" onkeydown="if(event.key==='Enter')quickFill()">
+      <button class="small" style="flex:0 0 80px" onclick="quickFill()">填入</button>
+    </div>
+    <div class="fb" id="fillFb"></div>
+    <div id="blanks"></div>
+    <div class="row">
+      <button class="sec small" onclick="giveUp()">顯示答案</button>
+      <button class="sec small" onclick="nextRound()">換一題</button>
+    </div>
+  </div>
+
+  <!-- 單站問答模式 -->
+  <div id="singleArea">
+    <div class="row" style="margin-top:10px">
+      <input type="text" id="answer" autocomplete="off" onkeydown="if(event.key==='Enter')submitAnswer()">
+      <button class="small" style="flex:0 0 80px" id="ansBtn" onclick="submitAnswer()">送出</button>
+    </div>
+    <div class="fb" id="feedback"></div>
+    <div class="row">
+      <button class="sec small" onclick="skip()">跳過</button>
+      <button class="sec small" onclick="endSingle()">結束</button>
+    </div>
+  </div>
+
+  <div id="done" class="hide">
+    <h2>🎉 完成！</h2>
+    <p id="finalScore"></p>
+    <button id="againBtn" onclick="nextRound()">下一題</button>
+    <button class="sec" style="margin-top:10px" onclick="show('home')">回主畫面</button>
+  </div>
+</div>
+
+<!-- 設置 -->
+<div id="settings" class="view">
+  <div class="top" style="display:grid;grid-template-columns:1fr auto 1fr"><button class="sec small" style="justify-self:start" onclick="show('home')">← 返回</button><b style="font-size:1.15rem">設置</b><span></span></div>
+  <div class="card">
+    <b>模式</b>
+    <label>遊戲模式</label>
+    <select id="mode">
+      <option value="fill">填空題：整條路線的站名自己填（不用照順序）</option>
+      <option value="single">單站問答：地圖標一站，猜站名（不限題數）</option>
+    </select>
+    <label id="bothL" style="display:flex;gap:8px;align-items:center;opacity:1"><input type="checkbox" id="both"> 去程與返程視為同一題</label>
+    <label id="nbL" style="display:flex;gap:8px;align-items:center;opacity:1"><input type="checkbox" id="nb"> 顯示上一站／下一站提示</label>
+  </div>
+  <div class="card">
+    <b>地圖</b>
+    <label>地圖來源</label>
+    <select id="mapKind">
+      <option value="leaflet">OpenStreetMap（免金鑰）</option>
+      <option value="google">Google 地圖（需 API 金鑰）</option>
+    </select>
+    <label>Google Maps API 金鑰</label><input type="password" id="gkey" autocomplete="off" placeholder="AIza...">
+    <div class="muted" style="margin-top:6px;line-height:1.5">到 Google Cloud Console 建立專案 → 啟用「Maps JavaScript API」→ 建立金鑰，建議限制只能從你的 github.io 網址使用。沒填金鑰會自動用 OpenStreetMap。</div>
+    <label>OpenStreetMap 樣式</label>
+    <select id="tile">
+      <option value="osm">OpenStreetMap（隱藏公車站，最大放大18級）</option>
+      <option value="osmfull">OpenStreetMap 完整（會顯示公車站）</option>
+      <option value="light">Esri 淺灰（無公車站）</option>
+      <option value="dark">Esri 深灰（無公車站）</option>
+    </select>
+  </div>
+  <div class="card">
+    <b>TDX 帳號</b>
+    <label>Client ID</label><input type="text" id="cid" autocomplete="off">
+    <label>Client Secret</label><input type="password" id="csec" autocomplete="off">
+    <div class="muted" style="margin-top:6px">只會存在你這個瀏覽器的 localStorage，不會上傳。到 tdx.transportdata.tw 註冊後可取得。</div>
+  </div>
+  <div class="card">
+    <b>顏色</b>
+    <div class="row"><div><label>主色</label><input type="color" id="c-primary"></div><div><label>背景</label><input type="color" id="c-bg"></div></div>
+    <div class="row"><div><label>文字</label><input type="color" id="c-text"></div><div><label>強調/進度條</label><input type="color" id="c-accent"></div></div>
+  </div>
+  <button class="sec" style="width:100%;margin-top:10px" onclick="resetSettings()">還原預設</button>
+  <div class="muted" id="setMsg" style="margin-top:10px"></div>
+  <div class="muted" style="text-align:center;margin:18px 0 6px">版本 <span id="ver"></span></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const CITIES={Taipei:'臺北市',NewTaipei:'新北市',Taoyuan:'桃園市',Taichung:'臺中市',Tainan:'臺南市',Kaohsiung:'高雄市',Keelung:'基隆市',Hsinchu:'新竹市',HsinchuCounty:'新竹縣',MiaoliCounty:'苗栗縣',ChanghuaCounty:'彰化縣',NantouCounty:'南投縣',YunlinCounty:'雲林縣',ChiayiCounty:'嘉義縣',Chiayi:'嘉義市',PingtungCounty:'屏東縣',YilanCounty:'宜蘭縣',HualienCounty:'花蓮縣',TaitungCounty:'臺東縣',KinmenCounty:'金門縣',PenghuCounty:'澎湖縣',LienchiangCounty:'連江縣',InterCity:'公路客運'};
+const DEFAULTS={primary:'#3f7ea6',bg:'#f1efe9',text:'#2e3440',accent:'#3d8b64',mode:'fill',both:false,ver:5,mapKind:'leaflet',tile:'osm',nb:false,gkey:'',cid:'',csec:''};
+const ESRI='https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/';
+const TILES={
+  light:[ESRI+'World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',ESRI+'World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}'],
+  dark:[ESRI+'World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',ESRI+'World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'],
+  osm:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+  osmfull:['https://tile.openstreetmap.org/{z}/{x}/{y}.png']
+};
+const NZ={osm:16,osmfull:19,light:16,dark:16},MZ={osm:18,osmfull:19,light:18,dark:18};
+const API='https://tdx.transportdata.tw/api/basic/v2/Bus';
+const TOKEN_URL='https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token';
+
+const $=id=>document.getElementById(id);
+const load=(k,d)=>{try{return JSON.parse(localStorage.getItem('bq3_'+k))??d}catch{return d}};
+const save=(k,v)=>{try{localStorage.setItem('bq3_'+k,JSON.stringify(v))}catch{}};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pick=a=>a[Math.random()*a.length|0];
+const col=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let settings={...DEFAULTS,...load('settings',{})};
+try{if(!localStorage.getItem('bq3_settings')){const o=JSON.parse(localStorage.getItem('settings'))||{};['cid','csec','gkey'].forEach(k=>{if(o[k])settings[k]=o[k]})}}catch{}
+if(settings.ver!==5){settings={...settings,tile:'osm',ver:5};save('settings',settings)}
+let selCities=new Set(load('cities',[]));
+let items=load('items',[]);   // {text,on}
+
+function show(id){document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===id));if(id==='settings')fillSettings();window.scrollTo(0,0)}
+function applyTheme(){const r=document.documentElement.style;r.setProperty('--primary',settings.primary);r.setProperty('--bg',settings.bg);r.setProperty('--text',settings.text);r.setProperty('--accent',settings.accent)}
+
+/* ---------- 設置 ---------- */
+function syncModeOpts(){const m=$('mode').value;$('bothL').classList.toggle('hide',m!=='fill');$('nbL').classList.toggle('hide',m!=='single')}
+function fillSettings(){
+  $('cid').value=settings.cid;$('csec').value=settings.csec;$('gkey').value=settings.gkey;
+  ['primary','bg','text','accent'].forEach(k=>$('c-'+k).value=settings[k]);
+  $('mode').value=settings.mode;$('nb').checked=!!settings.nb;$('both').checked=!!settings.both;$('mapKind').value=settings.mapKind;$('tile').value=settings.tile;$('setMsg').textContent='';syncModeOpts();
+}
+function saveSettings(){
+  settings={...settings,cid:$('cid').value.trim(),csec:$('csec').value.trim(),gkey:$('gkey').value.trim(),mode:$('mode').value,nb:$('nb').checked,both:$('both').checked,mapKind:$('mapKind').value,tile:$('tile').value};
+  ['primary','bg','text','accent'].forEach(k=>settings[k]=$('c-'+k).value);
+  gFailed=false;save('settings',settings);token=null;applyTheme();MapAPI.destroy();syncModeOpts();$('setMsg').textContent='已自動儲存 ✓';
+}
+document.querySelectorAll('#settings input,#settings select').forEach(el=>{el.addEventListener('input',saveSettings);el.addEventListener('change',saveSettings)});
+function resetSettings(){settings={...DEFAULTS,cid:settings.cid,csec:settings.csec,gkey:settings.gkey};save('settings',settings);applyTheme();MapAPI.destroy();fillSettings();$('setMsg').textContent='已還原預設（保留帳密與金鑰）'}
+
+/* ---------- 縣市 / 路線輸入 ---------- */
+function renderCities(){
+  $('cities').innerHTML=Object.entries(CITIES).map(([k,v])=>`<label><input type="checkbox" value="${k}" ${selCities.has(k)?'checked':''} onchange="toggleCity(this)">${v}</label>`).join('');
+  updateCitySummary();
+}
+function toggleCity(el){el.checked?selCities.add(el.value):selCities.delete(el.value);save('cities',[...selCities]);updateCitySummary()}
+function updateCitySummary(){$('citySummary').textContent=selCities.size?'已選：'+[...selCities].map(c=>CITIES[c]).join('、'):'選擇縣市（可多選）'}
+function addRoute(){
+  $('routeInput').value.split(/[,，、\s]+/).map(s=>s.trim()).filter(Boolean).forEach(t=>{if(!items.some(i=>i.text===t))items.push({text:t,on:true})});
+  $('routeInput').value='';save('items',items);renderItems();
+}
+function renderItems(){
+  $('routeList').innerHTML=items.map((it,i)=>`<div class="item"><span>${esc(it.text)}</span><input type="checkbox" ${it.on?'checked':''} onchange="items[${i}].on=this.checked;save('items',items)"><button class="x" onclick="items.splice(${i},1);save('items',items);renderItems()">×</button></div>`).join('');
+}
+
+/* ---------- 名稱比對 ---------- */
+// 路線：全形→半形、去空白/括號備註，並去掉「路、號、線」（19路A ⇄ 19A、19路 ⇄ 19）
+function norm(s){return String(s||'').normalize('NFKC').toUpperCase().replace(/\s/g,'').replace(/\(.*?\)/g,'').replace(/[路號号線]/g,'')}
+function base(n){return n.replace(/(主|副)$/,'')}   // 去掉主/副
+function parseItem(text){
+  const m=String(text).normalize('NFKC').match(/^(\d+)\s*[~〜\-–]\s*(\d+)$/);
+  if(m){let a=+m[1],b=+m[2];if(a>b)[a,b]=[b,a];return{range:[a,b]}}
+  return{name:norm(text)};
+}
+function routeMatches(rn,p){
+  const n=norm(rn),b=base(n);
+  if(p.range){if(!/^\d+$/.test(b))return false;const v=+b;return v>=p.range[0]&&v<=p.range[1]}
+  return n===p.name||b===p.name;   // 沒標主/副 → 主副一起
+}
+// 站名：忽略空白、括號備註、結尾「站」、臺/台
+const normStop=s=>String(s||'').normalize('NFKC').replace(/\s/g,'').replace(/\(.*?\)/g,'').replace(/(公車)?站$/,'').replace(/臺/g,'台').toUpperCase();
+
+/* ---------- TDX ---------- */
+let token=null,tokenExp=0;
+async function getToken(){
+  if(token&&Date.now()<tokenExp)return token;
+  if(!settings.cid||!settings.csec)throw new Error('請先到「設置」輸入 TDX 帳號密碼');
+  const r=await fetch(TOKEN_URL,{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({grant_type:'client_credentials',client_id:settings.cid,client_secret:settings.csec})});
+  if(!r.ok)throw new Error('TDX 驗證失敗，請檢查帳號密碼');
+  const j=await r.json();token=j.access_token;tokenExp=Date.now()+(j.expires_in-60)*1000;return token;
+}
+async function tdx(path){
+  const t=await getToken();
+  const r=await fetch(API+path,{headers:{authorization:'Bearer '+t}});
+  if(r.status===429)throw new Error('TDX 請求太頻繁，稍後再試');
+  if(!r.ok)throw new Error('TDX 回應錯誤 '+r.status);
+  return r.json();
+}
+const cityPath=c=>c==='InterCity'?'InterCity':'City/'+c;
+
+/* ---------- 地圖（OpenStreetMap / Google 地圖） ---------- */
+let gFailed=false,gPromise=null;
+window.gm_authFailure=()=>{gFailed=true;alert('Google Maps 金鑰無效或未啟用 Maps JavaScript API，下次會改用 OpenStreetMap。');};
+function loadGoogle(key){
+  if(window.google&&google.maps)return Promise.resolve();
+  if(gPromise)return gPromise;
+  gPromise=new Promise((res,rej)=>{
+    window.__gmInit=res;
+    const s=document.createElement('script');
+    s.src='https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(key)+'&callback=__gmInit&language=zh-TW';
+    s.onerror=()=>{gPromise=null;rej(new Error('Google Maps 載入失敗'))};
+    document.head.appendChild(s);
+  });
+  return gPromise;
+}
+const MapAPI={
+  kind:null,m:null,grp:null,items:[],
+  async init(){
+    let want=(settings.mapKind==='google'&&settings.gkey&&!gFailed)?'google':'leaflet';
+    if(want==='google'){try{await loadGoogle(settings.gkey)}catch(e){want='leaflet'}}
+    if(this.kind===want&&this.m){this.resize();return}
+    this.destroy();
+    const el=$('map');
+    if(want==='google'){
+      this.m=new google.maps.Map(el,{center:{lat:23.7,lng:121},zoom:8,mapTypeControl:false,streetViewControl:false,fullscreenControl:false,gestureHandling:'greedy',clickableIcons:false,styles:[{featureType:'transit',stylers:[{visibility:'off'}]},{featureType:'poi',stylers:[{visibility:'off'}]}]});
+    }else{
+      this.m=L.map(el).setView([23.7,121],8);
+      (TILES[settings.tile]||TILES.light).forEach(u=>L.tileLayer(u,{attribution:'Tiles © Esri, OpenStreetMap',maxNativeZoom:NZ[settings.tile]||16,maxZoom:MZ[settings.tile]||18}).addTo(this.m));
+      this.grp=L.layerGroup().addTo(this.m);
+    }
+    this.kind=want;this.items=[];setTimeout(()=>this.resize(),80);
+  },
+  destroy(){
+    if(this.kind==='leaflet'&&this.m)this.m.remove();
+    $('map').innerHTML='';this.m=null;this.kind=null;this.grp=null;this.items=[];
+  },
+  resize(){if(!this.m)return;this.kind==='google'?google.maps.event.trigger(this.m,'resize'):this.m.invalidateSize()},
+  clear(){if(this.kind==='google'){this.items.forEach(x=>x.setMap(null));this.items=[]}else if(this.grp)this.grp.clearLayers()},
+  line(coords,color,w,op){
+    if(this.kind==='google')this.items.push(new google.maps.Polyline({path:coords.map(c=>({lat:c[0],lng:c[1]})),strokeColor:color,strokeWeight:w,strokeOpacity:op??1,map:this.m}));
+    else L.polyline(coords,{color,weight:w,opacity:op??1}).addTo(this.grp);
+  },
+  fit(coords){
+    if(!coords.length)return;
+    if(this.kind==='google'){const b=new google.maps.LatLngBounds();coords.forEach(c=>b.extend({lat:c[0],lng:c[1]}));this.m.fitBounds(b,40)}
+    else this.m.fitBounds(coords,{padding:[20,20]});
+  },
+  // o: {r, fill, stroke, sw, tip, perm, z}
+  dot(pos,o){
+    let mk;
+    if(this.kind==='google'){mk=new google.maps.Marker({position:{lat:pos[0],lng:pos[1]},map:this.m});this.items.push(mk)}
+    else mk=L.circleMarker(pos,{radius:o.r}).addTo(this.grp);
+    const h={mk,o:{...o}};this._style(h);return h;
+  },
+  set(h,patch){Object.assign(h.o,patch);this._style(h)},
+  _style(h){
+    const o=h.o,mk=h.mk;
+    if(this.kind==='google'){
+      mk.setIcon({path:google.maps.SymbolPath.CIRCLE,scale:o.r*.9,fillColor:o.fill,fillOpacity:1,strokeColor:o.stroke||'#fff',strokeWeight:o.sw||1,labelOrigin:new google.maps.Point(0,-2.8)});
+      mk.setLabel(o.tip&&o.perm?{text:o.tip,color:'#111',fontWeight:'700',fontSize:'13px'}:null);
+      mk.setTitle(o.tip||'');mk.setZIndex(o.z||1);
+    }else{
+      mk.setStyle({color:o.stroke||o.fill,fillColor:o.fill,fillOpacity:1,weight:o.sw||1});mk.setRadius(o.r);
+      mk.unbindTooltip();if(o.tip)mk.bindTooltip(o.tip,{permanent:!!o.perm,direction:'top'});
+      if(o.z)mk.bringToFront();
+    }
+  }
+};
+
+/* ---------- 遊戲共用 ---------- */
+let entries=[],mode='fill';
+const stopCache={};
+
+async function startGame(){
+  if(!selCities.size){show('start');$('startMsg').textContent='請至少選一個縣市';return}
+  show('start');$('goBtn').disabled=true;$('startMsg').textContent='載入路線中…';
+  try{
+    const active=items.filter(i=>i.on).map(i=>parseItem(i.text));
+    const all=[],samples=[];
+    for(const c of selCities){
+      const list=await tdx(`/Route/${cityPath(c)}?$format=JSON`);
+      list.slice(0,25).forEach(r=>samples.push(r.RouteName?.Zh_tw));
+      list.forEach(r=>{
+        const nm=r.RouteName?.Zh_tw;if(!nm)return;
+        if(!active.length||active.some(p=>routeMatches(nm,p))){all.push({city:c,name:nm,uid:r.RouteUID});return}
+        // 主路線名沒中，再比對子路線名稱（如 19A）
+        (r.SubRoutes||[]).forEach(s=>{
+          const sn=s.SubRouteName?.Zh_tw;
+          if(sn&&active.some(p=>routeMatches(sn,p)))all.push({city:c,name:nm,uid:r.RouteUID,subUID:s.SubRouteUID,sub:sn});
+        });
+      });
+    }
+    if(!all.length){
+      $('startMsg').innerHTML='找不到符合的路線。<br>TDX 路線名稱範例：'+esc(samples.filter(Boolean).slice(0,20).join('、'))+'<br>把實際名稱告訴我，我再調整比對。';
+      return;
+    }
+    entries=all;mode=settings.mode;
+    $('startMsg').textContent='';
+    show('game');
+    await MapAPI.init();
+    startMode();
+  }catch(e){$('startMsg').textContent='❌ '+e.message}
+  finally{$('goBtn').disabled=false}
+}
+function startMode(){
+  $('fillArea').classList.toggle('hide',mode!=='fill');
+  $('singleArea').classList.toggle('hide',mode!=='single');
+  $('done').classList.add('hide');
+  $('againBtn').textContent=mode==='fill'?'下一題':'繼續';
+  routesDone=0;asked=0;score=0;
+  mode==='fill'?newFill():nextSingle();
+}
+function nextRound(){$('done').classList.add('hide');mode==='fill'?newFill():nextSingle()}
+function quitGame(){show('start')}
+
+function wktCoords(w){return [...String(w||'').matchAll(/(-?\d+\.?\d*)\s+(-?\d+\.?\d*)/g)].map(m=>[+m[2],+m[1]])}
+async function getStops(q){
+  const key=q.city+'|'+q.uid+'|'+(q.subUID||'');
+  if(stopCache[key])return stopCache[key];
+  const nm=q.name.replace(/'/g,"''");
+  const [data,shapes]=await Promise.all([
+    tdx(`/StopOfRoute/${cityPath(q.city)}?$filter=RouteName/Zh_tw eq '${nm}'&$format=JSON`),
+    tdx(`/Shape/${cityPath(q.city)}?$filter=RouteName/Zh_tw eq '${nm}'&$format=JSON`).catch(()=>[])
+  ]);
+  let use=data.filter(d=>d.RouteUID===q.uid);if(!use.length)use=data;
+  if(q.subUID){
+    const names=new Set(use.filter(d=>d.SubRouteUID===q.subUID).map(d=>d.SubRouteName?.Zh_tw).filter(Boolean));
+    const f=use.filter(d=>d.SubRouteUID===q.subUID||names.has(d.SubRouteName?.Zh_tw));
+    if(f.length)use=f;
+  }
+  const dirs=use.map(d=>{
+    let sh=shapes.filter(x=>x.Direction===d.Direction&&x.SubRouteUID===d.SubRouteUID);
+    if(!sh.length)sh=shapes.filter(x=>x.Direction===d.Direction&&x.SubRouteName?.Zh_tw&&x.SubRouteName.Zh_tw===d.SubRouteName?.Zh_tw);
+    if(!sh.length)sh=shapes.filter(x=>x.Direction===d.Direction&&x.RouteUID===d.RouteUID);
+    return{
+      dir:d.Direction,subUID:d.SubRouteUID,sub:d.SubRouteName?.Zh_tw,
+      shape:sh.length?wktCoords(sh[0].Geometry):null,
+      stops:(d.Stops||[]).filter(x=>x.StopPosition&&x.StopName?.Zh_tw).sort((a,b)=>a.StopSequence-b.StopSequence)
+        .map(x=>({name:x.StopName.Zh_tw,pos:[x.StopPosition.PositionLat,x.StopPosition.PositionLon]}))
+    };
+  }).filter(d=>d.stops.length>=2);
+  dirs.debug=data.map(d=>`${d.SubRouteName?.Zh_tw||d.RouteName?.Zh_tw}｜方向${d.Direction}｜${(d.Stops||[]).length}站`).join('；');
+  return stopCache[key]=dirs;
+}
+async function randomRoute(){
+  let q,dirs=[];
+  for(let t=0;t<10&&!dirs.length;t++){q=pick(entries);dirs=await getStops(q)}
+  if(!dirs.length)throw new Error('所選路線查無站牌資料');
+  return{q,dirs,d:pick(dirs),debug:dirs.debug};
+}
+const lineOf=d=>d.shape&&d.shape.length>1?d.shape:d.stops.map(s=>s.pos);
+function drawRoute(dirs,d){
+  MapAPI.clear();
+  dirs.forEach(o=>{if(o!==d)MapAPI.line(lineOf(o),'#f59e0b',3,.5)});
+  MapAPI.line(lineOf(d),col('--primary'),5,1);
+  MapAPI.fit(lineOf(d));
+}
+// 找另一個方向：TDX 有些路線去/返程的 SubRouteUID 不同，所以改用評分比對
+function pairDir(dirs,d){
+  const opp=dirs.filter(x=>x!==d&&x.dir!==d.dir);
+  if(!opp.length)return null;
+  const nm=x=>normStop(x.name),f=d.stops[0],l=d.stops[d.stops.length-1];
+  const score=x=>(x.subUID&&x.subUID===d.subUID?4:0)+(x.sub&&x.sub===d.sub?2:0)
+    +((nm(x.stops[0])===nm(l)||nm(x.stops[x.stops.length-1])===nm(f))?1:0);
+  return opp.slice().sort((a,b)=>score(b)-score(a))[0];
+}
+const dirText=d=>d.dir==1?'返程':'去程';
+// 去程與返程依去程順序合併（LCS）：相同站名共用一列，不同的站左右分岔
+function mergeDirs(A,B){
+  const fk=x=>String(x.name||'').normalize('NFKC').replace(/\s/g,'').replace(/臺/g,'台');
+  const a=A.map(fk),b=B.map(fk),n=a.length,m=b.length;
+  const dp=Array.from({length:n+1},()=>new Uint16Array(m+1));
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)dp[i][j]=a[i]===b[j]?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]);
+  const segs=[];let i=0,j=0,la=[],lb=[];
+  const flush=()=>{if(la.length||lb.length)segs.push({l:la,r:lb});la=[];lb=[]};
+  while(i<n||j<m){
+    if(i<n&&j<m&&a[i]===b[j]){flush();segs.push({c:[A[i],B[j]]});i++;j++}
+    else if(j>=m||(i<n&&dp[i+1][j]>=dp[i][j+1])){la.push(A[i]);i++}
+    else{lb.push(B[j]);j++}
+  }
+  flush();return segs;
+}
+
+/* ---------- 模式一：填空題 ---------- */
+let fill=null,routesDone=0;
+async function newFill(){
+  $('blanks').innerHTML='';$('fillFb').textContent='';$('quick').value='';$('hint').textContent='載入中…';
+  $('progText').textContent='0 / 0';$('progBar').style.width='0';
+  try{
+    const {q,dirs,d,debug}=await randomRoute();
+    let A=d,B=null;
+    if(settings.both){
+      const o=pairDir(dirs,d);
+      if(o){[A,B]=d.dir<=o.dir?[d,o]:[o,d]}
+    }
+    MapAPI.clear();
+    dirs.forEach(o=>{if(o!==A&&o!==B)MapAPI.line(lineOf(o),'#9ca3af',3,.5)});
+    MapAPI.line(lineOf(A),col('--primary'),5,1);
+    if(B)MapAPI.line(lineOf(B),'#c2703d',4,.9);
+    MapAPI.fit(lineOf(A).concat(B?lineOf(B):[]));
+    const slots=[];
+    const row=ss=>{
+      const i=slots.length;
+      slots.push({name:ss[0].name,hs:ss.map(x=>MapAPI.dot(x.pos,{r:5,fill:'#94a3b8'}))});
+      return `<div class="tl" data-i="${i}"><span class="nm"></span></div>`;
+    };
+    let html='';
+    if(!B)html=A.stops.map(x=>row([x])).join('');
+    else mergeDirs(A.stops,B.stops.slice().reverse()).forEach(g=>{
+      if(g.c)html+=row(g.c);
+      else{
+        const lane=(lab,arr)=>`<div class="lane"><div class="lh">${lab}</div>${arr.length?arr.map(x=>row([x])).join(''):'<div class="tl gap"></div>'}</div>`;
+        html+=`<div class="br">${lane('去程 ↓',g.l)}${lane('返程 ↓',g.r)}</div>`;
+      }
+    });
+    $('blanks').innerHTML=html;
+    fill={q,stops:slots,rows:[...$('blanks').querySelectorAll('.tl[data-i]')],done:new Set(),over:false};
+    $('hint').innerHTML=`路線 <b>${esc(q.sub||q.name)}</b>　${B?'去返程':dirText(A)+(settings.both?'（查無另一方向；TDX 回傳：'+esc(debug)+'）':'')}　共 ${slots.length} 格`;
+    updateFill();
+  }catch(e){$('hint').textContent='⚠️ '+e.message}
+}
+function updateFill(){
+  const n=fill.done.size,t=fill.stops.length;
+  $('progText').textContent=`${n} / ${t}`;$('progBar').style.width=(n/t*100)+'%';
+  $('scoreText').textContent=`完成 ${routesDone} 條`;
+}
+function markOk(i){
+  if(fill.done.has(i))return;
+  const sl=fill.stops[i],row=fill.rows[i];
+  row.querySelector('.nm').textContent=sl.name;row.className='tl ok';
+  sl.hs.forEach(h=>MapAPI.set(h,{fill:col('--accent'),r:7,tip:sl.name,perm:false}));
+  fill.done.add(i);updateFill();
+  if(fill.done.size===fill.stops.length&&!fill.over){routesDone++;updateFill();finishFill(false)}
+}
+// 點時間軸上的點 → 在地圖上標出該站位置
+$('blanks').addEventListener('click',e=>{
+  const row=e.target.closest('.tl[data-i]');if(!fill||!row)return;
+  const i=+row.dataset.i;
+  fill.stops.forEach((s,j)=>{if(!fill.done.has(j)){s.hs.forEach(h=>{if(h.o.fill==='#f59e0b')MapAPI.set(h,{fill:'#94a3b8',r:5})});fill.rows[j].classList.remove('on')}});
+  if(!fill.done.has(i)&&!fill.over){fill.stops[i].hs.forEach(h=>MapAPI.set(h,{fill:'#f59e0b',r:9,z:5}));row.classList.add('on')}
+});
+// 輸入框：打對任一站名就自動填入所有對應位置（Enter 可看錯誤提示）
+function tryFill(manual){
+  if(!fill||fill.over)return;
+  const raw=$('quick').value,v=normStop(raw);if(!v)return;
+  const hits=[];fill.stops.forEach((s,i)=>{if(!fill.done.has(i)&&normStop(s.name)===v)hits.push(i)});
+  if(hits.length){hits.forEach(i=>markOk(i));$('fillFb').innerHTML=`<span class="ok">✔ ${esc(fill.stops[hits[0]].name)}</span>`;$('quick').value=''}
+  else if(manual)$('fillFb').innerHTML=`<span class="bad">✘ 沒有（或已填過）「${esc(raw.trim())}」</span>`;
+}
+function quickFill(){tryFill(true);$('quick').focus()}
+$('quick').addEventListener('input',()=>tryFill(false));
+function giveUp(){
+  if(!fill||fill.over)return;
+  fill.over=true;
+  fill.stops.forEach((s,i)=>{
+    if(fill.done.has(i))return;
+    fill.rows[i].querySelector('.nm').textContent=s.name;fill.rows[i].className='tl bad';
+    s.hs.forEach(h=>MapAPI.set(h,{fill:'#d14343',r:7,tip:s.name,perm:false}));
+  });
+  finishFill(true);
+}
+function finishFill(gave){
+  fill.over=true;
+  $('done').classList.remove('hide');
+  $('done').querySelector('h2').textContent=gave?'已顯示答案':'🎉 完成！';
+  $('finalScore').textContent=`答對 ${fill.done.size} / ${fill.stops.length} 站`;
+  $('done').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+/* ---------- 模式二：單站問答 ---------- */
+let cur=null,answered=false,asked=0,score=0;
+function updateSingle(){
+  $('progText').textContent=`答對 ${score} / ${asked}`;
+  $('progBar').style.width=(asked?score/asked*100:0)+'%';$('scoreText').textContent='';
+}
+async function nextSingle(){
+  answered=false;$('answer').value='';$('answer').disabled=false;$('feedback').textContent='';$('ansBtn').textContent='送出';
+  $('hint').textContent='載入中…';updateSingle();cur=null;
+  try{
+    const {q,dirs,d}=await randomRoute();
+    const idx=Math.random()*d.stops.length|0,st=d.stops[idx];
+    drawRoute(dirs,d);
+    d.stops.forEach((s,i)=>{if(i!==idx)MapAPI.dot(s.pos,{r:4,fill:'#94a3b8'})});
+    const h=MapAPI.dot(st.pos,{r:11,fill:col('--accent'),stroke:'#fff',sw:3,tip:'？',perm:true,z:9});
+    cur={name:st.name,h};
+    let t=`路線 <b>${esc(q.sub||q.name)}</b>　${dirText(d)}　第 ${idx+1} / ${d.stops.length} 站`;
+    if(settings.nb)t+=`<br>上一站：${esc(d.stops[idx-1]?.name||'（起點）')}　下一站：${esc(d.stops[idx+1]?.name||'（終點）')}`;
+    $('hint').innerHTML=t;
+  }catch(e){$('hint').textContent='⚠️ '+e.message}
+  $('answer').focus();
+}
+function revealSingle(ok){
+  MapAPI.set(cur.h,{tip:cur.name,perm:true});
+  $('feedback').innerHTML=ok?`<span class="ok">✔ 正確！${esc(cur.name)}</span>`:`<span class="bad">✘ 答案是 ${esc(cur.name)}</span>`;
+  answered=true;asked++;if(ok)score++;updateSingle();
+  $('answer').disabled=true;$('ansBtn').textContent='下一題';
+}
+function submitAnswer(){
+  if(answered){nextSingle();return}
+  if(!cur)return;
+  const a=normStop($('answer').value);if(!a)return;
+  revealSingle(a===normStop(cur.name));
+}
+function skip(){if(!answered&&cur)revealSingle(false);else nextSingle()}
+function endSingle(){
+  $('done').classList.remove('hide');
+  $('done').querySelector('h2').textContent='🎉 完成！';
+  $('finalScore').textContent=`答對 ${score} / ${asked} 題`;
+}
+
+/* init */
+const VERSION='1.14';   // 每次更新 +1（1.9 → 1.10 → 1.11…）
+$('ver').textContent=VERSION;
+applyTheme();renderCities();renderItems();
+</script>
+</body>
+</html>
